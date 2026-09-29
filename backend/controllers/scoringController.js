@@ -54,7 +54,7 @@ exports.recordDelivery = async (req, res, next) => {
 
 exports.undoLastDelivery = async (req, res, next) => {
   try {
-    const { innings } = await scoringEngine.undoLastDelivery(req.params.inningsId);
+    const { innings, redoDelivery } = await scoringEngine.undoLastDelivery(req.params.inningsId);
 
     let io;
     try {
@@ -70,7 +70,7 @@ exports.undoLastDelivery = async (req, res, next) => {
       });
     }
 
-    res.status(200).json({ success: true, message: 'Last delivery undone', data: { innings } });
+    res.status(200).json({ success: true, message: 'Last delivery undone', data: { innings, redoDelivery } });
   } catch (error) {
     next(error);
   }

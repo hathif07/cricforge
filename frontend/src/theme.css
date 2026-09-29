@@ -49,7 +49,7 @@ p { line-height: 1.55; color: var(--charcoal); }
 a { color: var(--black); }
 
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--white); }
-.app-main { flex: 1; max-width: 1180px; width: 100%; margin: 0 auto; padding: 32px 24px 64px; }
+.app-main { flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; padding: 28px 32px 56px; }
 .app-main--wide { max-width: 1400px; }
 
 /* ---------- Navbar ---------- */
@@ -166,12 +166,52 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .pill-nav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .pill { padding: 6px 14px; border: var(--border); border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; background: var(--white); }
 .pill.active { background: var(--black); color: var(--white); }
+.delivery-type-options .pill { min-height: 48px; padding: 12px 18px; font-size: 0.9rem; }
 
 .keyboard-btn {
   border: var(--border); background: var(--white); font-weight: 700; font-size: 1.05rem;
   padding: 16px 0; border-radius: var(--radius); cursor: pointer; transition: all 0.1s ease;
 }
 .keyboard-btn:hover { background: var(--black); color: var(--white); }
+.keyboard-btn.selected { background: var(--black); color: var(--white); box-shadow: 3px 3px 0 var(--gray-500); }
 .keyboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+.scoring-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 22px; align-items: start; }
+.scoring-catalog { position: sticky; top: 84px; }
+.live-scoreboard { background: var(--off-white); }
+.scoreboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.scoreboard-grid > div { border-right: var(--border-light); padding-right: 12px; display: flex; flex-direction: column; gap: 3px; }
+.scoreboard-grid > div:last-child { border-right: none; }
+.scoreboard-grid strong { font-size: 1.15rem; }
+.scoreboard-grid small { color: var(--gray-500); font-size: 0.82rem; }
+.scoreboard-score strong { font-family: var(--font-display); font-size: 2.2rem; }
+.current-players { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 18px; padding-top: 14px; border-top: var(--border-light); font-size: 0.84rem; }
+.bowler-stat { display: flex; justify-content: space-between; gap: 12px; border: var(--border-light); padding: 9px 10px; }
+.bowler-stat span { display: flex; flex-direction: column; gap: 3px; }
+.bowler-stat span:last-child { text-align: right; }
+.bowler-stat small { color: var(--gray-500); font-size: 0.72rem; }
+.catalog-highlight { display: flex; flex-direction: column; gap: 3px; border: var(--border); padding: 10px; margin-top: 12px; }
+.catalog-highlight span, .catalog-player small { color: var(--gray-500); font-size: 0.75rem; }
+.catalog-list { display: flex; flex-direction: column; gap: 6px; max-height: 330px; overflow-y: auto; }
+.catalog-player { text-align: left; display: flex; flex-direction: column; gap: 3px; border: var(--border-light); background: var(--white); padding: 9px 10px; cursor: pointer; }
+.catalog-player:hover, .catalog-player.active { border-color: var(--black); background: var(--gray-100); }
+.next-ball-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: var(--border-light); }
+.next-ball-btn { min-width: 150px; }
+.scoring-wicket-card { margin: 18px 0 0; background: var(--off-white); }
+@media (max-width: 900px) {
+  .scoring-layout { grid-template-columns: 1fr; }
+  .scoring-catalog { position: static; }
+}
+@media (max-width: 520px) {
+  .scoring-scorebox { align-items: flex-start; flex-direction: column; }
+  .over-summary { text-align: left; }
+  .next-ball-bar { align-items: flex-start; flex-direction: column; }
+  .next-ball-btn { width: 100%; }
+}
+@media (max-width: 700px) {
+  .app-main { padding-left: 16px; padding-right: 16px; }
+  .scoreboard-grid { grid-template-columns: repeat(2, 1fr); }
+  .scoreboard-grid > div:nth-child(2) { border-right: none; }
+}
 
 footer.site-footer { border-top: 2px solid var(--black); padding: 20px 24px; text-align: center; font-size: 0.8rem; color: var(--gray-500); }

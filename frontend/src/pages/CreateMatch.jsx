@@ -9,7 +9,9 @@ const CreateMatch = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/teams').then(({ data }) => setTeams(data.data.teams));
+    api.get('/teams').then(({ data }) => {
+      setTeams(data.data.teams.filter((team) => (team.players?.length || 0) > 0));
+    });
   }, []);
 
   const handleSubmit = async (e) => {
@@ -42,20 +44,21 @@ const CreateMatch = () => {
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="card" style={{ maxWidth: 560 }}>
+        <p className="muted">Choose any preloaded IPL squad or a local team created from the Teams tab. Teams with 11 or more players will have their Playing XI loaded automatically.</p>
         <form onSubmit={handleSubmit}>
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Team A</label>
               <select className="form-select" value={form.teamAId} onChange={(e) => setForm({ ...form, teamAId: e.target.value })} required>
                 <option value="">Select…</option>
-                {teams.map((t) => <option key={t._id} value={t._id}>{t.teamName}</option>)}
+                {teams.map((t) => <option key={t._id} value={t._id}>{t.teamName} ({t.players?.length || 0} players)</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label">Team B</label>
               <select className="form-select" value={form.teamBId} onChange={(e) => setForm({ ...form, teamBId: e.target.value })} required>
                 <option value="">Select…</option>
-                {teams.map((t) => <option key={t._id} value={t._id}>{t.teamName}</option>)}
+                {teams.map((t) => <option key={t._id} value={t._id}>{t.teamName} ({t.players?.length || 0} players)</option>)}
               </select>
             </div>
           </div>

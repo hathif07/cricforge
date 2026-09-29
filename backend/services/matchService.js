@@ -241,7 +241,13 @@ const getScorecard = async (matchId) => {
 };
 
 const listMatches = async (filter = {}) => {
-  return Match.find(filter).sort({ createdAt: -1 });
+  return Match.find({
+    ...filter,
+    'teamA.id': { $exists: true, $nin: ['', null] },
+    'teamA.name': { $exists: true, $nin: ['', null] },
+    'teamB.id': { $exists: true, $nin: ['', null] },
+    'teamB.name': { $exists: true, $nin: ['', null] }
+  }).sort({ createdAt: -1 });
 };
 
 const getMatchById = async (matchId) => {

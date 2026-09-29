@@ -10,8 +10,39 @@ const TeamXIPanel = ({ team, matchId, onSaved, saved }) => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get(`/teams/${team.id}`).then(({ data }) => setPlayers(data.data.team.players || []));
-  }, [team.id]);
+    api.get(`/teams/${team.id}`).then(async ({ data }) => {
+      const loadedTeam = data.data.team;
+      const loadedPlayers = loadedTeam.players || [];
+      setPlayers(loadedPlayers);
+
+      if (loadedPlayers.length >= 11) {
+        const startingPlayers = loadedPlayers.slice(0, 11);
+        const captainId = loadedTeam.captain?._id || startingPlayers.find((player) => player.role === 'Batter')?._id || startingPlayers[0]._id;
+        const keeperId = startingPlayers.find((player) => player.role === 'Wicketkeeper')?._id || startingPlayers[0]._id;
+        const selectedState = Object.fromEntries(startingPlayers.map((player) => [player._id, true]));
+        setSelected(selectedState);
+        setCaptainId(captainId);
+        setKeeperId(keeperId);
+
+        try {
+          await api.post(`/matches/${matchId}/playing-xi`, {
+            teamId: team.id,
+            players: startingPlayers.map((player, index) => ({
+              playerId: player._id,
+              playerName: player.name,
+              playerRole: player.role.toLowerCase(),
+              isCaptain: player._id === captainId,
+              isWicketkeeper: player._id === keeperId,
+              battingOrder: index + 1
+            }))
+          });
+          onSaved();
+        } catch (err) {
+          setError(err.response?.data?.message || 'Could not preload the Playing XI.');
+        }
+      }
+    });
+  }, [team.id, matchId]); // preload once for this team in this match
 
   const toggle = (playerId) => {
     setSelected((prev) => ({ ...prev, [playerId]: !prev[playerId] }));
@@ -49,7 +80,8 @@ const TeamXIPanel = ({ team, matchId, onSaved, saved }) => {
 
   return (
     <div className="card">
-      <h3>{team.name} {saved && <span className="badge badge-solid">Saved</span>}</h3>
+      <h3>{team.name} {saved && <span className="badge badge-solid">XI Loaded</span>}</h3>
+      <p className="muted">The first 11 players, captain and wicketkeeper are preloaded. You can edit them before starting.</p>
       {error && <div className="alert alert-error">{error}</div>}
       <div className="table-wrap" style={{ marginBottom: 12 }}>
         <table className="data-table">

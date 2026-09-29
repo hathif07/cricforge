@@ -102,6 +102,8 @@ const processDelivery = async (matchId, inningsId, payload) => {
   let currentOver = innings.overs.length ? await Over.findById(innings.overs[innings.overs.length - 1]) : null;
   if (!currentOver || currentOver.isComplete) {
     currentOver = await startNewOver(innings, match, payload.bowlerId, payload.bowlerName);
+  } else if (currentOver.bowlerId !== payload.bowlerId) {
+    throw Object.assign(new Error('The current over is already assigned to another bowler'), { status: 400 });
   }
 
   const isLegal = !['wide', 'noBall'].includes(payload.extras?.type);
@@ -208,6 +210,7 @@ const undoLastDelivery = async (inningsId) => {
   if (!lastDelivery) throw Object.assign(new Error('No deliveries to undo'), { status: 400 });
 
   const over = await Over.findById(lastDelivery.overId);
+  const redoDelivery = lastDelivery.toObject();
 
   innings.totalRuns -= lastDelivery.totalRuns;
   if (lastDelivery.isLegal) innings.totalBalls -= 1;
@@ -215,6 +218,12 @@ const undoLastDelivery = async (inningsId) => {
     innings.totalWickets -= 1;
     await FallOfWicket.findOneAndDelete({ deliveryId: lastDelivery._id });
   }
+  innings.currentStriker = lastDelivery.strikerId;
+  innings.currentNonStriker = lastDelivery.nonStrikerId;
+  if (lastDelivery.extras.type === 'wide') innings.totalExtras.wides = Math.max(innings.totalExtras.wides - (lastDelivery.extras.runs + 1), 0);
+  if (lastDelivery.extras.type === 'noBall') innings.totalExtras.noBalls = Math.max(innings.totalExtras.noBalls - (lastDelivery.extras.runs + 1), 0);
+  if (lastDelivery.extras.type === 'bye') innings.totalExtras.byes = Math.max(innings.totalExtras.byes - lastDelivery.extras.runs, 0);
+  if (lastDelivery.extras.type === 'legBye') innings.totalExtras.legByes = Math.max(innings.totalExtras.legByes - lastDelivery.extras.runs, 0);
   if (innings.isComplete) {
     innings.isComplete = false;
     innings.status = 'in_progress';
@@ -224,6 +233,10 @@ const undoLastDelivery = async (inningsId) => {
     over.runs -= lastDelivery.totalRuns;
     if (lastDelivery.isLegal) over.legalDeliveries -= 1;
     if (lastDelivery.isWicket) over.wickets -= 1;
+    if (lastDelivery.extras.type === 'wide') over.extras.wides = Math.max(over.extras.wides - (lastDelivery.extras.runs + 1), 0);
+    if (lastDelivery.extras.type === 'noBall') over.extras.noBalls = Math.max(over.extras.noBalls - (lastDelivery.extras.runs + 1), 0);
+    if (lastDelivery.extras.type === 'bye') over.extras.byes = Math.max(over.extras.byes - lastDelivery.extras.runs, 0);
+    if (lastDelivery.extras.type === 'legBye') over.extras.legByes = Math.max(over.extras.legByes - lastDelivery.extras.runs, 0);
     over.isComplete = false;
     over.deliveries = over.deliveries.filter((d) => d.toString() !== lastDelivery._id.toString());
     await over.save();
@@ -232,7 +245,7 @@ const undoLastDelivery = async (inningsId) => {
   await innings.save();
   await lastDelivery.deleteOne();
 
-  return { innings };
+  return { innings, redoDelivery };
 };
 
 module.exports = { processDelivery, undoLastDelivery, startNewOver };
