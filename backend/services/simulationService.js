@@ -216,4 +216,132 @@ const simulateMatch = async (teamAId, teamBId, oversLimit = 20, seed = Date.now(
   return simMatch;
 };
 
-module.exports = { simulateMatch, getPhase };
+/**
+ * Calculates live simulation analysis for a real match state after every ball.
+ * Computes Projected Score, Win Probability, Current Run Rate, Required Run Rate,
+ * Phase, and Match Situation.
+ */
+const calculateLiveAnalysis = ({ match, innings, delivery }) => {
+  const totalOvers = innings.maxOvers || match.oversPerInnings || (match.format === 'ODI' ? 50 : 20);
+  const totalBallsLimit = totalOvers * 6;
+  const legalBalls = innings.totalBalls || 0;
+  const ballsRemaining = Math.max(totalBallsLimit - legalBalls, 0);
+  const oversCompleted = Math.floor(legalBalls / 6);
+  const ballsInOver = legalBalls % 6;
+  const oversString = `${oversCompleted}.${ballsInOver}`;
+  const phase = getPhase(oversCompleted, totalOvers);
+
+  const crr = legalBalls > 0 ? Number(((innings.totalRuns / legalBalls) * 6).toFixed(2)) : 0;
+  const wicketsInHand = Math.max((innings.maxWickets || 10) - innings.totalWickets, 0);
+
+  let rrr = null;
+  let runsNeeded = null;
+  const isSecondInnings = innings.inningsNumber >= 2 || (innings.target != null && innings.target > 0);
+
+  if (isSecondInnings) {
+    const target = innings.target || 0;
+    runsNeeded = Math.max(target - innings.totalRuns, 0);
+    rrr = ballsRemaining > 0 ? Number(((runsNeeded / ballsRemaining) * 6).toFixed(2)) : (runsNeeded > 0 ? 99.99 : 0);
+  }
+
+  // Projected Score
+  let projectedScore;
+  const resourceMultiplier = 0.35 + (0.65 * (wicketsInHand / 10));
+  const parRate = match.format === 'ODI' ? 5.5 : 8.0;
+  const effectiveRate = legalBalls >= 6
+    ? (crr * 0.7 + (phase === 'death' ? 9.5 : phase === 'powerplay' ? 7.5 : 6.5) * 0.3)
+    : parRate;
+
+  if (isSecondInnings) {
+    if (innings.isComplete) {
+      projectedScore = innings.totalRuns;
+    } else {
+      projectedScore = Math.round(innings.totalRuns + ((ballsRemaining / 6) * Math.max(crr, parRate) * resourceMultiplier));
+      if (innings.target && projectedScore > innings.target && runsNeeded > 0) {
+        projectedScore = innings.target;
+      }
+    }
+  } else {
+    projectedScore = Math.round(innings.totalRuns + ((ballsRemaining / 6) * effectiveRate * resourceMultiplier));
+    if (projectedScore < innings.totalRuns) projectedScore = innings.totalRuns;
+  }
+
+  // Win Probability
+  const battingTeamName = innings.battingTeamName || (match.teamA && (match.teamA.id === innings.battingTeamId || match.teamA._id?.toString() === innings.battingTeamId) ? match.teamA.name : (match.teamB?.name || 'Batting Team'));
+  const bowlingTeamName = innings.bowlingTeamName || (match.teamA && (match.teamA.id === innings.bowlingTeamId || match.teamA._id?.toString() === innings.bowlingTeamId) ? match.teamA.name : (match.teamB?.name || 'Bowling Team'));
+
+  let battingProb = 50;
+  if (!isSecondInnings) {
+    const parScore = totalOvers * parRate;
+    const advantage = (projectedScore - parScore) / (parScore * 0.35 || 1);
+    const wicketPenalty = (innings.totalWickets / 10) * 25;
+    battingProb = 50 + (advantage * 30) - wicketPenalty;
+    battingProb = Math.min(Math.max(Math.round(battingProb), 5), 95);
+  } else {
+    if (innings.isComplete) {
+      battingProb = innings.totalRuns >= (innings.target || 0) ? 100 : 0;
+    } else if (wicketsInHand <= 0) {
+      battingProb = 0;
+    } else if (runsNeeded <= 0) {
+      battingProb = 100;
+    } else {
+      const crrDiff = crr - (rrr || 0);
+      const wktEdge = (wicketsInHand - 5) * 5;
+      const runsPerBall = runsNeeded / (ballsRemaining || 1);
+      const prob = 50 + (crrDiff * 6) + wktEdge - (runsPerBall > 2 ? 25 : runsPerBall > 1.5 ? 15 : 0);
+      battingProb = Math.min(Math.max(Math.round(prob), 1), 99);
+    }
+  }
+  const bowlingProb = 100 - battingProb;
+
+  const isTeamABatting = match.teamA && (match.teamA.id === innings.battingTeamId || match.teamA.name === innings.battingTeamName);
+  const teamAWinProb = isTeamABatting ? battingProb : bowlingProb;
+  const teamBWinProb = isTeamABatting ? bowlingProb : battingProb;
+
+  // Match Situation Text
+  let situation = '';
+  if (match.status === 'completed') {
+    situation = match.result?.winner === 'Tie'
+      ? 'Match tied.'
+      : `${match.result?.winner || 'Match winner'} won by ${match.result?.margin} ${match.result?.marginType || ''}.`;
+  } else if (!isSecondInnings) {
+    situation = `${battingTeamName} are ${innings.totalRuns}/${innings.totalWickets} in ${oversString} ov (CRR: ${crr.toFixed(2)}). Projected: ${projectedScore}.`;
+  } else {
+    situation = `${battingTeamName} need ${runsNeeded} run${runsNeeded === 1 ? '' : 's'} in ${ballsRemaining} ball${ballsRemaining === 1 ? '' : 's'} (RRR: ${rrr.toFixed(2)}, CRR: ${crr.toFixed(2)}) with ${wicketsInHand} wkts remaining.`;
+  }
+
+  return {
+    matchId: match._id,
+    inningsId: innings._id,
+    deliveryId: delivery?._id,
+    projectedScore,
+    winProbability: {
+      battingTeam: { name: battingTeamName, percent: battingProb },
+      bowlingTeam: { name: bowlingTeamName, percent: bowlingProb },
+      teamA: { id: match.teamA?.id, name: match.teamA?.name, percent: teamAWinProb },
+      teamB: { id: match.teamB?.id, name: match.teamB?.name, percent: teamBWinProb }
+    },
+    currentRunRate: crr,
+    requiredRunRate: rrr,
+    situation,
+    phase,
+    oversString,
+    totalRuns: innings.totalRuns,
+    totalWickets: innings.totalWickets,
+    totalBalls: innings.totalBalls
+  };
+};
+
+const analyzeLiveMatch = async (matchId, inningsId, currentDelivery) => {
+  const Match = require('../models/Match');
+  const Innings = require('../models/Innings');
+
+  const match = await Match.findById(matchId);
+  if (!match) return null;
+  const innings = await Innings.findById(inningsId);
+  if (!innings) return null;
+
+  return calculateLiveAnalysis({ match, innings, delivery: currentDelivery });
+};
+
+module.exports = { simulateMatch, getPhase, calculateLiveAnalysis, analyzeLiveMatch };

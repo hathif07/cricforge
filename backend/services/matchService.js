@@ -198,6 +198,11 @@ const getScorecard = async (matchId) => {
 
     const battingCard = {};
     const bowlingCard = {};
+    const overMap = {};
+    const cumulativeRuns = [];
+    const simulationProgression = [];
+    const keyMoments = [];
+    let cumulative = 0;
 
     for (const d of deliveries) {
       if (!battingCard[d.strikerId]) {
@@ -220,7 +225,57 @@ const getScorecard = async (matchId) => {
       if (d.isLegal) bowler.balls += 1;
       bowler.runs += d.totalRuns;
       if (d.isWicket && !['runOut'].includes(d.wicket?.type)) bowler.wickets += 1;
+
+      // Over progression
+      const overNum = d.overNumber || Math.floor((d.sequenceNumber - 1) / 6) + 1;
+      if (!overMap[overNum]) overMap[overNum] = { over: overNum, runs: 0, wickets: 0 };
+      overMap[overNum].runs += d.totalRuns;
+      if (d.isWicket) overMap[overNum].wickets += 1;
+
+      // Cumulative runs
+      cumulative += d.totalRuns;
+      cumulativeRuns.push({
+        ball: d.sequenceNumber,
+        over: `${d.overNumber || Math.floor((d.sequenceNumber - 1) / 6)}.${d.ballNumber || (d.sequenceNumber % 6)}`,
+        runs: cumulative
+      });
+
+      // Simulation progression
+      if (d.simulation) {
+        simulationProgression.push({
+          ball: d.sequenceNumber,
+          over: `${d.overNumber || Math.floor((d.sequenceNumber - 1) / 6)}.${d.ballNumber || (d.sequenceNumber % 6)}`,
+          projectedScore: d.simulation.projectedScore,
+          winProbabilityBatting: d.simulation.winProbability?.battingTeam?.percent ?? d.simulation.winProbability?.teamA?.percent ?? 50,
+          winProbabilityBowling: d.simulation.winProbability?.bowlingTeam?.percent ?? d.simulation.winProbability?.teamB?.percent ?? 50,
+          teamAWinProb: d.simulation.winProbability?.teamA?.percent ?? 50,
+          teamBWinProb: d.simulation.winProbability?.teamB?.percent ?? 50,
+          currentRunRate: d.simulation.currentRunRate,
+          requiredRunRate: d.simulation.requiredRunRate,
+          situation: d.simulation.situation
+        });
+      }
+
+      // Key match moments
+      if (d.isWicket) {
+        keyMoments.push({
+          type: 'wicket',
+          ball: d.sequenceNumber,
+          over: `${d.overNumber}.${d.ballNumber}`,
+          description: `WICKET: ${d.wicket?.dismissedPlayerName || d.strikerName} (${d.wicket?.type || 'out'}) b ${d.bowlerName} - ${innings.battingTeamName} ${cumulative}/${fallOfWickets.length + 1}`
+        });
+      } else if (d.isSix) {
+        keyMoments.push({
+          type: 'six',
+          ball: d.sequenceNumber,
+          over: `${d.overNumber}.${d.ballNumber}`,
+          description: `SIX! ${d.strikerName} hits ${d.bowlerName} for 6 runs`
+        });
+      }
     }
+
+    const topBatters = Object.values(battingCard).sort((a, b) => b.runs - a.runs).slice(0, 3);
+    const topBowlers = Object.values(bowlingCard).sort((a, b) => b.wickets - a.wickets || a.runs - b.runs).slice(0, 3);
 
     inningsData.push({
       inningsNumber: innings.inningsNumber,
@@ -233,7 +288,15 @@ const getScorecard = async (matchId) => {
       battingCard: Object.values(battingCard),
       bowlingCard: Object.values(bowlingCard),
       fallOfWickets,
-      partnerships
+      partnerships,
+      progression: {
+        perOver: Object.values(overMap),
+        cumulative: cumulativeRuns
+      },
+      simulationProgression,
+      topBatters,
+      topBowlers,
+      keyMoments
     });
   }
 

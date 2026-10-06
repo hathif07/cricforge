@@ -40,6 +40,7 @@ const emitBoundary = (io, matchId, payload) => emitToMatch(io, matchId, 'boundar
 const emitOverCompleted = (io, matchId, payload) => emitToMatch(io, matchId, 'over_completed', payload);
 const emitInningsCompleted = (io, matchId, payload) => emitToMatch(io, matchId, 'innings_completed', payload);
 const emitMatchCompleted = (io, matchId, payload) => emitToMatch(io, matchId, 'match_completed', payload);
+const emitSimulationUpdated = (io, matchId, payload) => emitToMatch(io, matchId, 'simulation_updated', payload);
 
 module.exports = {
   registerMatchSocketHandlers,
@@ -50,5 +51,6 @@ module.exports = {
   emitBoundary,
   emitOverCompleted,
   emitInningsCompleted,
-  emitMatchCompleted
+  emitMatchCompleted,
+  emitSimulationUpdated
 };

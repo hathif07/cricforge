@@ -30,6 +30,19 @@ const deliverySchema = new mongoose.Schema({
     },
     isBoundary: { type: Boolean, default: false },
     isSix: { type: Boolean, default: false },
+    simulation: {
+        projectedScore: Number,
+        winProbability: {
+            battingTeam: { name: String, percent: Number },
+            bowlingTeam: { name: String, percent: Number },
+            teamA: { id: String, name: String, percent: Number },
+            teamB: { id: String, name: String, percent: Number }
+        },
+        currentRunRate: Number,
+        requiredRunRate: Number,
+        situation: String,
+        phase: String
+    },
     timestamp: { type: Date, default: Date.now }
 });
 

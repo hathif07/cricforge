@@ -1,4 +1,5 @@
 const scoringEngine = require('../services/scoringEngine');
+const simulationService = require('../services/simulationService');
 const { getIO } = require('../sockets/ioInstance');
 const {
   emitScoreUpdated,
@@ -6,7 +7,9 @@ const {
   emitWicket,
   emitBoundary,
   emitOverCompleted,
-  emitInningsCompleted
+  emitInningsCompleted,
+  emitMatchCompleted,
+  emitSimulationUpdated
 } = require('../sockets/matchSocket');
 
 // NOTE ON FIX: the original controller obtained `io` via a lazy
@@ -16,7 +19,19 @@ const {
 exports.recordDelivery = async (req, res, next) => {
   try {
     const { matchId, inningsId } = req.params;
-    const { delivery, innings, over } = await scoringEngine.processDelivery(matchId, inningsId, req.body);
+    const { delivery, innings, over, match } = await scoringEngine.processDelivery(matchId, inningsId, req.body);
+
+    // Ball-by-ball simulation analysis - wrapped in try/catch so failure does not break scoring
+    let simulationData = null;
+    try {
+      simulationData = await simulationService.analyzeLiveMatch(matchId, inningsId, delivery);
+      if (simulationData) {
+        delivery.simulation = simulationData;
+        await delivery.save();
+      }
+    } catch (simError) {
+      console.error('Simulation analysis error:', simError.message);
+    }
 
     let io;
     try {
@@ -32,6 +47,9 @@ exports.recordDelivery = async (req, res, next) => {
         wickets: innings.totalWickets,
         totalBalls: innings.totalBalls
       });
+      if (simulationData) {
+        emitSimulationUpdated(io, matchId, simulationData);
+      }
       if (delivery.isWicket) {
         emitWicket(io, matchId, { delivery, innings });
       }
@@ -44,9 +62,16 @@ exports.recordDelivery = async (req, res, next) => {
       if (innings.isComplete) {
         emitInningsCompleted(io, matchId, { innings });
       }
+      if (match && match.status === 'completed') {
+        emitMatchCompleted(io, matchId, { match });
+      }
     }
 
-    res.status(201).json({ success: true, message: 'Delivery recorded', data: { delivery, innings, over } });
+    res.status(201).json({
+      success: true,
+      message: 'Delivery recorded',
+      data: { delivery, innings, over, simulation: simulationData }
+    });
   } catch (error) {
     next(error);
   }

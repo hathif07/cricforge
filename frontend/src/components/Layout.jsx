@@ -9,7 +9,6 @@ const NAV_ITEMS = [
   { to: '/teams', label: 'Teams', roles: null },
   { to: '/auction', label: 'Auction', roles: ['admin', 'team_owner', 'tournament_organizer'] },
   { to: '/matches', label: 'Matches', roles: null },
-  { to: '/simulation', label: 'Simulation', roles: null },
   { to: '/admin/users', label: 'Admin', roles: ['admin'] }
 ];
 

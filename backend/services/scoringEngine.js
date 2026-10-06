@@ -194,7 +194,39 @@ const processDelivery = async (matchId, inningsId, payload) => {
 
   await innings.save();
 
-  return { delivery, innings, over: currentOver };
+  if (innings.inningsNumber >= 2 && innings.isComplete) {
+    match.status = 'completed';
+    const firstInnings = await Innings.findOne({ matchId: match._id, inningsNumber: 1 });
+    if (firstInnings) {
+      if (innings.totalRuns >= (innings.target || firstInnings.totalRuns + 1)) {
+        const wicketsLeft = maxWickets - innings.totalWickets;
+        match.result = {
+          winner: innings.battingTeamName || (match.teamA.id === innings.battingTeamId ? match.teamA.name : match.teamB.name),
+          margin: wicketsLeft,
+          marginType: 'wickets',
+          method: 'normal'
+        };
+      } else if (innings.totalRuns === firstInnings.totalRuns) {
+        match.result = {
+          winner: 'Tie',
+          margin: 0,
+          marginType: 'runs',
+          method: 'normal'
+        };
+      } else {
+        const runsMargin = firstInnings.totalRuns - innings.totalRuns;
+        match.result = {
+          winner: firstInnings.battingTeamName || (match.teamA.id === firstInnings.battingTeamId ? match.teamA.name : match.teamB.name),
+          margin: runsMargin,
+          marginType: 'runs',
+          method: 'normal'
+        };
+      }
+    }
+    await match.save();
+  }
+
+  return { delivery, innings, over: currentOver, match };
 };
 
 /**
