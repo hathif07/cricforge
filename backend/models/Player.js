@@ -100,6 +100,12 @@ const playerSchema = new mongoose.Schema(
     isSold: {
       type: Boolean,
       default: false
+    },
+
+    status: {
+      type: String,
+      enum: ['unsold', 'available', 'sold'],
+      default: 'unsold'
     }
   },
   { timestamps: true }

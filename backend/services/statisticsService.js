@@ -30,9 +30,13 @@ const computeMatchStatistics = async (matchId) => {
     if (!d.extraType || d.extraType === 'bye' || d.extraType === 'leg_bye') striker.batting.ballsFaced += 1;
     if (d.runsBat === 4) striker.batting.fours += 1;
     if (d.runsBat === 6) striker.batting.sixes += 1;
-    if (d.isWicket && String(d.dismissedPlayerId) === String(d.strikerId)) {
-      striker.batting.isOut = true;
-      striker.batting.dismissalType = d.wicketType;
+    if (d.isWicket) {
+      const targetId = d.dismissedPlayerId || d.strikerId;
+      if (targetId) {
+        const dismissed = ensure(targetId, d.battingTeamId);
+        dismissed.batting.isOut = true;
+        dismissed.batting.dismissalType = d.wicketType;
+      }
     }
 
     const bowler = ensure(d.bowlerId, d.bowlingTeamId);

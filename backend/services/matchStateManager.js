@@ -13,6 +13,20 @@ const getLiveState = async (innings, targetScore) => {
     requiredRunRate = calculateRequiredRunRate(targetScore, innings.totalRuns, ballsRemaining);
   }
 
+  const Delivery = require('../models/Delivery');
+  let simulation = null;
+  try {
+    const lastDelivery = await Delivery.findOne({
+      inningsId: innings._id,
+      'simulation.projectedScore': { $exists: true }
+    }).sort({ sequenceNumber: -1 });
+    if (lastDelivery?.simulation) {
+      simulation = lastDelivery.simulation;
+    }
+  } catch (err) {
+    // Ignore simulation retrieval errors for live state
+  }
+
   return {
     battingTeamId: innings.battingTeamId,
     battingTeamName: innings.battingTeamName,
@@ -29,7 +43,8 @@ const getLiveState = async (innings, targetScore) => {
     currentNonStriker: innings.currentNonStriker,
     currentBowler: innings.currentBowler,
     isComplete: innings.isComplete,
-    status: innings.status
+    status: innings.status,
+    simulation
   };
 };
 

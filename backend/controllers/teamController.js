@@ -76,7 +76,7 @@ exports.createTeam = async (req, res, next) => {
 
 exports.getTeams = async (req, res, next) => {
   try {
-    const teams = await Team.find()
+    const teams = await Team.find({ teamName: { $exists: true, $ne: '' } })
       .populate(
         'players',
         'name role battingRating bowlingRating isSold'

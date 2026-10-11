@@ -1,6 +1,7 @@
 const Player = require('../models/Player');
 const Team = require('../models/Team');
 const { connectDB, disconnectDB } = require('../config/db');
+const { playerDobMap, normalizeBowlingStyle, calculateAge } = require('./updateExistingPlayerAges');
 
 // Curated IPL squad snapshot for demo and simulation use. Refresh this list
 // against an approved provider before using it for an official competition.
@@ -92,12 +93,18 @@ const seedCricketData = async () => {
     const playerIds = [];
     const createdPlayers = [];
     for (let index = 0; index < teamSeed.players.length; index += 1) {
-      const [name, role, battingStyle, bowlingStyle] = teamSeed.players[index];
+      const [name, role, battingStyle, rawBowlingStyle] = teamSeed.players[index];
+      const bowlingStyle = normalizeBowlingStyle(rawBowlingStyle);
+      const dobString = playerDobMap[name] || '1996-01-15';
+      const dob = new Date(dobString);
+      const age = calculateAge(dob);
+
       const player = await Player.findOneAndUpdate(
         { playerId: `${teamSeed.teamId}-${index + 1}` },
         {
           $set: {
             name, role, battingStyle, bowlingStyle, teamId: team._id,
+            dob, age, status: 'sold',
             jerseyNumber: index + 1, isSold: true, soldPrice: 1,
             battingRating: role === 'Bowler' ? 45 : 80,
             bowlingRating: role === 'Batter' || role === 'Wicketkeeper' ? 20 : 75

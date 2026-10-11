@@ -30,6 +30,8 @@ const LiveScoring = () => {
   const [dismissedPlayerId, setDismissedPlayerId] = useState('');
   const [dismissedIds, setDismissedIds] = useState([]);
   const [scorecard, setScorecard] = useState(null);
+  const [simulation, setSimulation] = useState(null);
+  const [activeScorecardTab, setActiveScorecardTab] = useState('batting');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,22 @@ const LiveScoring = () => {
     setXiB(teamBXi.data.data.team.players || []);
     const currentCard = scorecardResponse.data.data.innings?.find((entry) => entry.inningsNumber === current?.inningsNumber);
     setScorecard(currentCard || null);
+
+    if (currentCard?.simulationProgression?.length > 0) {
+      const lastSim = currentCard.simulationProgression[currentCard.simulationProgression.length - 1];
+      setSimulation({
+        projectedScore: lastSim.projectedScore,
+        currentRunRate: lastSim.currentRunRate,
+        requiredRunRate: lastSim.requiredRunRate,
+        phase: lastSim.phase,
+        situation: lastSim.situation,
+        winProbability: {
+          teamA: { percent: lastSim.teamAWinProb },
+          teamB: { percent: lastSim.teamBWinProb }
+        }
+      });
+    }
+
     const dismissedFromBattingCard = (currentCard?.battingCard || []).filter((player) => player.isOut).map((player) => player.playerId);
     const dismissedFromFallOfWickets = (currentCard?.fallOfWickets || []).map((wicket) => wicket.dismissedPlayerId);
     const dismissed = [...new Set([...dismissedFromBattingCard, ...dismissedFromFallOfWickets])];
@@ -159,7 +177,10 @@ const LiveScoring = () => {
         };
       }
 
-      await api.post(`/scoring/${id}/innings/${innings._id}/deliveries`, payload);
+      const res = await api.post(`/scoring/${id}/innings/${innings._id}/deliveries`, payload);
+      if (res.data?.data?.simulation) {
+        setSimulation(res.data.data.simulation);
+      }
       setRedoDelivery(null);
       if (isWicket) setDismissedIds((prev) => [...new Set([...prev, dismissedPlayerId || strikerId])]);
       setPendingRuns(null);
@@ -276,6 +297,53 @@ const LiveScoring = () => {
                 <span>Bowler: <strong>{findName(bowlingSquad, bowlerId) || 'Select bowler'}</strong></span>
               </div>
             </div>
+
+            {/* Live Simulation Engine Bar */}
+            {simulation && (
+              <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid #10b981', background: 'var(--card-bg, #ffffff)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div>
+                    <span className="eyebrow" style={{ color: '#10b981', fontWeight: 700 }}>⚡ LIVE BALL SIMULATION</span>
+                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>{simulation.situation || 'Match forecast'}</strong>
+                  </div>
+                  {simulation.phase && (
+                    <span className="badge badge-outline" style={{ textTransform: 'uppercase' }}>
+                      Phase: {simulation.phase}
+                    </span>
+                  )}
+                </div>
+
+                {/* Win Probability Bar */}
+                {simulation.winProbability && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
+                      <span>{match.teamA?.name}: {simulation.winProbability.teamA?.percent ?? 50}%</span>
+                      <span>{match.teamB?.name}: {simulation.winProbability.teamB?.percent ?? 50}%</span>
+                    </div>
+                    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#e2e8f0' }}>
+                      <div style={{ width: `${simulation.winProbability.teamA?.percent ?? 50}%`, background: '#0284c7', transition: 'width 0.3s ease' }} />
+                      <div style={{ width: `${simulation.winProbability.teamB?.percent ?? 50}%`, background: '#e11d48', transition: 'width 0.3s ease' }} />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid-3" style={{ fontSize: '0.85rem' }}>
+                  <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '6px 10px', borderRadius: 6 }}>
+                    <span className="eyebrow">Projected</span>
+                    <strong>{simulation.projectedScore ?? '—'}</strong>
+                  </div>
+                  <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '6px 10px', borderRadius: 6 }}>
+                    <span className="eyebrow">CRR</span>
+                    <strong>{simulation.currentRunRate ?? (legalBalls > 0 ? ((innings.totalRuns / legalBalls) * 6).toFixed(2) : '0.00')}</strong>
+                  </div>
+                  <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '6px 10px', borderRadius: 6 }}>
+                    <span className="eyebrow">RRR</span>
+                    <strong>{simulation.requiredRunRate ?? '—'}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <div className="card-title"><h3>Current delivery</h3>{(freeHit || extraType === 'noBall') && <span className="badge badge-solid">FREE HIT</span>}</div>
               <div className="form-row">
@@ -346,6 +414,114 @@ const LiveScoring = () => {
                 <button type="button" className="btn" onClick={redo} disabled={!redoDelivery || saving}>Redo delivery</button>
               </div>
             </div>
+
+            {/* Live Scorecard for this Innings */}
+            {scorecard && (
+              <div className="card" style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h3 style={{ margin: 0 }}>📊 Live Innings Scorecard</h3>
+                  <div className="pill-nav">
+                    <button
+                      type="button"
+                      className={`pill-btn ${activeScorecardTab === 'batting' ? 'active' : ''}`}
+                      onClick={() => setActiveScorecardTab('batting')}
+                    >
+                      Batting
+                    </button>
+                    <button
+                      type="button"
+                      className={`pill-btn ${activeScorecardTab === 'bowling' ? 'active' : ''}`}
+                      onClick={() => setActiveScorecardTab('bowling')}
+                    >
+                      Bowling
+                    </button>
+                  </div>
+                </div>
+
+                {activeScorecardTab === 'batting' && (
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Batter</th>
+                          <th>Runs</th>
+                          <th>Balls</th>
+                          <th>4s</th>
+                          <th>6s</th>
+                          <th>SR</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(scorecard.battingCard || []).map((b) => {
+                          const isStriker = b.playerId === strikerId;
+                          const isNonStriker = b.playerId === nonStrikerId;
+                          return (
+                            <tr key={b.playerId} style={isStriker ? { background: 'rgba(2, 132, 199, 0.08)' } : isNonStriker ? { background: 'rgba(16, 185, 129, 0.08)' } : undefined}>
+                              <td>
+                                <strong>{b.name}</strong>
+                                {isStriker && <span className="badge badge-solid" style={{ marginLeft: 6, fontSize: '0.7rem' }}>⚡ Striker</span>}
+                                {isNonStriker && <span className="badge badge-outline" style={{ marginLeft: 6, fontSize: '0.7rem' }}>🏃 Non-striker</span>}
+                              </td>
+                              <td><strong>{b.runs}</strong></td>
+                              <td>{b.balls}</td>
+                              <td>{b.fours}</td>
+                              <td>{b.sixes}</td>
+                              <td>{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
+                              <td>{b.isOut ? <span className="muted">{b.dismissal}</span> : <strong style={{ color: '#16a34a' }}>not out</strong>}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {activeScorecardTab === 'bowling' && (
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Bowler</th>
+                          <th>Overs</th>
+                          <th>Maidens</th>
+                          <th>Runs</th>
+                          <th>Wkts</th>
+                          <th>Econ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(scorecard.bowlingCard || []).map((b) => {
+                          const isCurrentBowler = b.playerId === bowlerId;
+                          return (
+                            <tr key={b.playerId} style={isCurrentBowler ? { background: 'rgba(139, 92, 246, 0.08)' } : undefined}>
+                              <td>
+                                <strong>{b.name}</strong>
+                                {isCurrentBowler && <span className="badge badge-solid" style={{ marginLeft: 6, fontSize: '0.7rem' }}>🎯 Current</span>}
+                              </td>
+                              <td>{Math.floor(b.balls / 6)}.{b.balls % 6}</td>
+                              <td>{b.maidens || 0}</td>
+                              <td>{b.runs}</td>
+                              <td><strong>{b.wickets}</strong></td>
+                              <td>{b.balls > 0 ? ((b.runs / b.balls) * 6).toFixed(2) : '0.00'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {scorecard.fallOfWickets && scorecard.fallOfWickets.length > 0 && (
+                  <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--gray-200, #e2e8f0)', fontSize: '0.88rem' }}>
+                    <strong>Fall of Wickets: </strong>
+                    <span className="muted">
+                      {scorecard.fallOfWickets.map((w) => `${w.score}-${w.wicketNumber} (${w.dismissedPlayerName}, ${w.overs} ov)`).join(' • ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </main>
 
           <aside className="scoring-catalog card">

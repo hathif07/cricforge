@@ -25,7 +25,7 @@ const getPhaseAnalysis = async (matchId, inningsNumber, totalOvers = 20) => {
   const phases = { powerplay: { runs: 0, wickets: 0, balls: 0 }, middle: { runs: 0, wickets: 0, balls: 0 }, death: { runs: 0, wickets: 0, balls: 0 } };
 
   for (const d of deliveries) {
-    const phase = getPhase(d.over, totalOvers);
+    const phase = getPhase(Math.max(0, d.over - 1), totalOvers);
     phases[phase].runs += d.totalRuns;
     if (d.isWicket) phases[phase].wickets += 1;
     if (!['wide', 'no_ball'].includes(d.extraType)) phases[phase].balls += 1;

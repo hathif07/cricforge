@@ -2,14 +2,58 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from 'recharts';
 import api from '../services/api';
+import { joinMatchRoom, leaveMatchRoom, subscribeToMatchEvents } from '../services/socket';
 
 const Scorecard = () => {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [liveSimulation, setLiveSimulation] = useState(null);
+
+  const fetchScorecard = async () => {
+    try {
+      const res = await api.get(`/matches/${id}/scorecard`);
+      setData(res.data.data);
+    } catch (err) {
+      console.error('Failed to load scorecard', err);
+    }
+  };
 
   useEffect(() => {
-    api.get(`/matches/${id}/scorecard`).then(({ data }) => setData(data.data));
+    fetchScorecard();
+    joinMatchRoom(id);
+
+    const unsubscribe = subscribeToMatchEvents({
+      scorecard_updated: (payload) => {
+        if (payload?.match && payload?.innings) {
+          setData(payload);
+        } else {
+          fetchScorecard();
+        }
+      },
+      simulation_updated: (payload) => {
+        if (payload?.simulation) {
+          setLiveSimulation(payload.simulation);
+        }
+      },
+      ball_scored: () => {
+        fetchScorecard();
+      },
+      delivery_undone: () => {
+        fetchScorecard();
+      },
+      score_updated: () => {
+        fetchScorecard();
+      },
+      match_completed: () => {
+        fetchScorecard();
+      }
+    });
+
+    return () => {
+      leaveMatchRoom(id);
+      unsubscribe();
+    };
   }, [id]);
 
   if (!data) return <div className="spinner" />;
@@ -18,6 +62,27 @@ const Scorecard = () => {
   const teamAName = match.teamA?.name || 'Team A';
   const teamBName = match.teamB?.name || 'Team B';
   const isCompleted = match.status === 'completed';
+
+  // Determine current active innings and latest simulation
+  const currentInnings = innings[activeTab] || innings[innings.length - 1];
+  const simFromInnings = currentInnings?.simulationProgression?.length > 0
+    ? currentInnings.simulationProgression[currentInnings.simulationProgression.length - 1]
+    : null;
+
+  const currentSim = liveSimulation || (simFromInnings ? {
+    projectedScore: simFromInnings.projectedScore,
+    currentRunRate: simFromInnings.currentRunRate,
+    requiredRunRate: simFromInnings.requiredRunRate,
+    phase: simFromInnings.phase,
+    situation: simFromInnings.situation,
+    winProbability: {
+      teamA: { percent: simFromInnings.teamAWinProb },
+      teamB: { percent: simFromInnings.teamBWinProb }
+    }
+  } : null);
+
+  const teamAProb = currentSim?.winProbability?.teamA?.percent ?? 50;
+  const teamBProb = currentSim?.winProbability?.teamB?.percent ?? 50;
 
   return (
     <div>
@@ -56,7 +121,74 @@ const Scorecard = () => {
         </div>
       </div>
 
-      {/* Player Performance Highlights (Overall Standouts) */}
+      {/* Live Ball-by-Ball Simulation Card */}
+      {currentSim && (
+        <div className="card" style={{ marginBottom: 24, borderTop: '4px solid #10b981', background: 'var(--card-bg, #ffffff)' }}>
+          <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p className="eyebrow" style={{ color: '#10b981', fontWeight: 700 }}>⚡ LIVE BALL-BY-BALL SIMULATION ENGINE</p>
+              <h3 style={{ margin: 0 }}>Win Probability &amp; Live Match Forecast</h3>
+            </div>
+            {currentSim.phase && (
+              <span className="badge badge-outline" style={{ textTransform: 'uppercase' }}>
+                Phase: {currentSim.phase}
+              </span>
+            )}
+          </div>
+
+          {/* Win Probability Bar */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontWeight: 600 }}>
+              <span>{teamAName}: {teamAProb}%</span>
+              <span>{teamBName}: {teamBProb}%</span>
+            </div>
+            <div style={{ display: 'flex', height: 14, borderRadius: 8, overflow: 'hidden', background: '#e2e8f0' }}>
+              <div
+                style={{
+                  width: `${teamAProb}%`,
+                  background: 'linear-gradient(90deg, #0284c7, #38bdf8)',
+                  transition: 'width 0.4s ease'
+                }}
+              />
+              <div
+                style={{
+                  width: `${teamBProb}%`,
+                  background: 'linear-gradient(90deg, #f43f5e, #e11d48)',
+                  transition: 'width 0.4s ease'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Key Simulation Numbers */}
+          <div className="grid-4" style={{ marginTop: 16 }}>
+            <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '10px 14px', borderRadius: 8 }}>
+              <span className="eyebrow">Projected Score</span>
+              <strong style={{ fontSize: '1.25rem', color: '#8b5cf6', display: 'block' }}>
+                {currentSim.projectedScore ?? '—'}
+              </strong>
+            </div>
+            <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '10px 14px', borderRadius: 8 }}>
+              <span className="eyebrow">Current Run Rate</span>
+              <strong style={{ fontSize: '1.25rem', color: '#0284c7', display: 'block' }}>
+                {currentSim.currentRunRate ?? '—'}
+              </strong>
+            </div>
+            <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '10px 14px', borderRadius: 8 }}>
+              <span className="eyebrow">Required Run Rate</span>
+              <strong style={{ fontSize: '1.25rem', color: currentSim.requiredRunRate > 10 ? '#ef4444' : '#10b981', display: 'block' }}>
+                {currentSim.requiredRunRate ?? '—'}
+              </strong>
+            </div>
+            <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '10px 14px', borderRadius: 8 }}>
+              <span className="eyebrow">Match Situation</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 600, display: 'block', marginTop: 4 }}>
+                {currentSim.situation || 'Match in progress'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       {innings.length > 0 && (
         <div className="card" style={{ marginBottom: 24 }}>
           <h3>🌟 Player Performance Highlights</h3>

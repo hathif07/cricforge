@@ -84,7 +84,7 @@ cd backend
 cp .env.example .env      # edit JWT secrets for anything beyond local demo use
 npm install
 npm run seed               # creates 5 demo users (one per role) + demo teams/players
-npm run dev                 # starts on http://localhost:5000
+npm run dev                 # starts on http://10.169.127.39:5001 (binds to 0.0.0.0)
 ```
 
 If `MONGODB_URI` in `.env` is left as the local default and no MongoDB is
@@ -108,10 +108,10 @@ Demo accounts seeded by `npm run seed` (password for all: `Cricket@2026`):
 ```bash
 cd frontend
 npm install
-npm run dev                 # starts on http://localhost:5173, proxies /api and /socket.io to :5000
+npm run dev                 # starts on http://10.169.127.39:5173, proxies /api and /socket.io to :5001
 ```
 
-Open `http://localhost:5173`, log in with any seeded account, and
+Open `http://10.169.127.39:5173`, log in with any seeded account, and
 everything — player/team management, the auction room, match creation
 through live scoring, and the simulation/analytics dashboard — runs
 against the one unified backend.

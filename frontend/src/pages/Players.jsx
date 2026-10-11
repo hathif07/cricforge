@@ -12,7 +12,9 @@ const emptyForm = {
   jerseyNumber: '',
   battingRating: 50,
   bowlingRating: 50,
-  basePrice: 0.5
+  basePrice: 0.5,
+  status: 'unsold',
+  isSold: false
 };
 
 const bowlingStyles = [
@@ -35,6 +37,8 @@ const Players = () => {
 
   const [players, setPlayers] = useState([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
@@ -42,8 +46,14 @@ const Players = () => {
 
   const load = async () => {
     try {
-      const { data } = await api.get('/players', { params: { search } });
-      setPlayers(data.data.players);
+      const params = {};
+      if (search) params.search = search;
+      if (roleFilter !== 'all') params.role = roleFilter;
+      if (statusFilter === 'sold') params.isSold = 'true';
+      if (statusFilter === 'unsold') params.isSold = 'false';
+
+      const { data } = await api.get('/players', { params });
+      setPlayers(data.data.players || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load players.');
     }
@@ -51,7 +61,7 @@ const Players = () => {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [statusFilter, roleFilter]);
 
   const calculateAge = (dob) => {
     if (!dob) return '';
@@ -199,12 +209,34 @@ const Players = () => {
       jerseyNumber: p.jerseyNumber || '',
       battingRating: p.battingRating ?? 50,
       bowlingRating: p.bowlingRating ?? 50,
-      basePrice: p.basePrice ?? 0.5
+      basePrice: p.basePrice ?? 0.5,
+      status: p.status || (p.isSold ? 'sold' : 'unsold'),
+      isSold: Boolean(p.isSold)
     });
 
     setEditingId(p._id);
     setShowForm(true);
     setError('');
+  };
+
+  const handleStatusChange = async (playerId, newStatus) => {
+    try {
+      await api.patch(`/players/${playerId}/status`, { status: newStatus });
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p._id === playerId
+            ? {
+                ...p,
+                status: newStatus,
+                isSold: newStatus === 'sold',
+                teamId: newStatus === 'unsold' ? null : p.teamId
+              }
+            : p
+        )
+      );
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not update player status.');
+    }
   };
 
   const deletePlayer = async (id) => {
@@ -409,6 +441,26 @@ const Players = () => {
                 />
               </div>
 
+              <div className="form-group">
+                <label className="form-label">
+                  Status
+                </label>
+                <select
+                  className="form-select"
+                  value={form.status || (form.isSold ? 'sold' : 'unsold')}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      status: e.target.value,
+                      isSold: e.target.value === 'sold'
+                    })
+                  }
+                >
+                  <option value="unsold">Unsold</option>
+                  <option value="sold">Sold</option>
+                </select>
+              </div>
+
             </div>
 
             <button className="btn btn-primary">
@@ -419,22 +471,65 @@ const Players = () => {
         </div>
       )}
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          load();
-        }}
-        className="form-row"
-        style={{ margin: '18px 0' }}
-      >
-        <input
-          className="form-input"
-          placeholder="Search players"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <button className="btn">Search</button>
-      </form>
+      {/* Search and Filters Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '18px 0', flexWrap: 'wrap', gap: 12 }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            load();
+          }}
+          style={{ display: 'flex', gap: 8, flex: '1 1 300px' }}
+        >
+          <input
+            className="form-input"
+            placeholder="Search players by name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button className="btn">Search</button>
+        </form>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Role Filter */}
+          <select
+            className="form-select"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            style={{ width: 'auto', minWidth: 140 }}
+          >
+            <option value="all">All Roles</option>
+            <option value="Batter">Batters</option>
+            <option value="Bowler">Bowlers</option>
+            <option value="All-rounder">All-rounders</option>
+            <option value="Wicketkeeper">Wicketkeepers</option>
+          </select>
+
+          {/* Status Filter Pills */}
+          <div className="pill-nav">
+            <button
+              type="button"
+              className={`pill-btn ${statusFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('all')}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`pill-btn ${statusFilter === 'unsold' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('unsold')}
+            >
+              Unsold
+            </button>
+            <button
+              type="button"
+              className={`pill-btn ${statusFilter === 'sold' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('sold')}
+            >
+              Sold
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="table-wrap">
         <table className="data-table">
@@ -455,7 +550,7 @@ const Players = () => {
           <tbody>
             {players.map((p) => (
               <tr key={p._id}>
-                <td>{p.name}</td>
+                <td><strong>{p.name}</strong></td>
                 <td>{p.age ?? '-'}</td>
                 <td>{p.role}</td>
                 <td>{p.teamId?.teamName || '—'}</td>
@@ -463,11 +558,32 @@ const Players = () => {
                 <td>{p.bowlingRating}</td>
                 <td>{p.basePrice} Cr</td>
                 <td>
-                  {p.isSold ? (
-                    <span className="badge badge-solid">Sold</span>
+                  {canManage ? (
+                    <select
+                      className="form-select form-select-sm"
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        width: 'auto',
+                        minWidth: 95,
+                        borderColor: p.isSold ? '#16a34a' : '#ef4444',
+                        color: p.isSold ? '#16a34a' : '#ef4444',
+                        background: p.isSold ? 'rgba(22, 163, 74, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                        cursor: 'pointer',
+                        borderRadius: 6
+                      }}
+                      value={p.isSold ? 'sold' : 'unsold'}
+                      onChange={(e) => handleStatusChange(p._id, e.target.value)}
+                    >
+                      <option value="unsold" style={{ color: '#ef4444' }}>Unsold</option>
+                      <option value="sold" style={{ color: '#16a34a' }}>Sold</option>
+                    </select>
+                  ) : p.isSold ? (
+                    <span className="badge badge-solid" style={{ background: '#16a34a', color: '#fff' }}>Sold</span>
                   ) : (
-                    <span className="badge badge-outline">
-                      Available
+                    <span className="badge badge-outline" style={{ color: '#ef4444', borderColor: '#ef4444', fontWeight: 600 }}>
+                      Unsold
                     </span>
                   )}
                 </td>

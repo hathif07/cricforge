@@ -29,7 +29,8 @@ exports.listSimMatches = async (req, res, next) => {
 
 exports.getSimMatch = async (req, res, next) => {
   try {
-    const match = await SimMatch.findById(req.params.id).populate('teamA teamB winnerTeamId');
+    const match = await SimMatch.findById(req.params.id)
+      .populate('teamA teamB winnerTeamId innings.battingTeamId innings.bowlingTeamId');
     if (!match) return res.status(404).json({ success: false, message: 'Simulated match not found' });
     res.status(200).json({ success: true, data: { match } });
   } catch (error) {
@@ -37,10 +38,30 @@ exports.getSimMatch = async (req, res, next) => {
   }
 };
 
+const PlayerMatchStats = require('../models/PlayerMatchStats');
+const SimDelivery = require('../models/SimDelivery');
+
 exports.getMatchStatistics = async (req, res, next) => {
   try {
-    const stats = await statisticsService.computeMatchStatistics(req.params.id);
+    await statisticsService.computeMatchStatistics(req.params.id);
+    const stats = await PlayerMatchStats.find({ matchId: req.params.id })
+      .populate('playerId', 'name role')
+      .populate('teamId', 'teamName shortName');
     res.status(200).json({ success: true, data: { stats } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getSimDeliveries = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const filter = { matchId: id };
+    if (req.query.innings) filter.inningsNumber = Number(req.query.innings);
+    const deliveries = await SimDelivery.find(filter)
+      .populate('strikerId nonStrikerId bowlerId dismissedPlayerId', 'name role')
+      .sort({ inningsNumber: 1, over: 1, ballInOver: 1 });
+    res.status(200).json({ success: true, data: { deliveries } });
   } catch (error) {
     next(error);
   }

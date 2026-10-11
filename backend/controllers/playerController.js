@@ -161,7 +161,7 @@ exports.createPlayer = async (req, res, next) => {
 
 exports.getPlayers = async (req, res, next) => {
   try {
-    const { search, role, teamId, unassigned } = req.query;
+    const { search, role, teamId, unassigned, status, isSold } = req.query;
 
     const query = {};
 
@@ -178,6 +178,14 @@ exports.getPlayers = async (req, res, next) => {
 
     if (unassigned === 'true') {
       query.teamId = null;
+    }
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (isSold !== undefined) {
+      query.isSold = isSold === 'true';
     }
 
     const players = await Player.find(query)
@@ -268,7 +276,10 @@ exports.updatePlayer = async (req, res, next) => {
       'teamId',
       'battingRating',
       'bowlingRating',
-      'basePrice'
+      'basePrice',
+      'status',
+      'isSold',
+      'soldPrice'
     ];
 
     allowedFields.forEach((field) => {
@@ -276,6 +287,25 @@ exports.updatePlayer = async (req, res, next) => {
         player[field] = req.body[field];
       }
     });
+
+    if (req.body.status !== undefined) {
+      if (req.body.status === 'unsold' || req.body.status === 'available') {
+        player.status = 'unsold';
+        player.isSold = false;
+        player.teamId = null;
+        player.soldPrice = null;
+      } else if (req.body.status === 'sold') {
+        player.status = 'sold';
+        player.isSold = true;
+      }
+    } else if (req.body.isSold !== undefined) {
+      player.isSold = Boolean(req.body.isSold);
+      player.status = player.isSold ? 'sold' : 'unsold';
+      if (!player.isSold) {
+        player.teamId = null;
+        player.soldPrice = null;
+      }
+    }
 
     if (req.body.dob !== undefined) {
       player.age = calculateAge(req.body.dob);
@@ -336,6 +366,65 @@ exports.deletePlayer = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Player deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updatePlayerStatus = async (req, res, next) => {
+  try {
+    const { status, teamId, soldPrice } = req.body;
+    if (!status || !['unsold', 'sold', 'available'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be either unsold or sold'
+      });
+    }
+
+    const player = await Player.findById(req.params.id);
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        message: 'Player not found'
+      });
+    }
+
+    const previousTeamId = player.teamId ? player.teamId.toString() : null;
+
+    if (status === 'unsold' || status === 'available') {
+      player.status = 'unsold';
+      player.isSold = false;
+      player.teamId = null;
+      player.soldPrice = null;
+
+      if (previousTeamId) {
+        await Team.findByIdAndUpdate(previousTeamId, {
+          $pull: { players: player._id }
+        });
+      }
+    } else if (status === 'sold') {
+      player.status = 'sold';
+      player.isSold = true;
+      if (teamId) {
+        player.teamId = teamId;
+        await Team.findByIdAndUpdate(teamId, {
+          $addToSet: { players: player._id }
+        });
+      }
+      if (soldPrice !== undefined) {
+        player.soldPrice = Number(soldPrice);
+      }
+    }
+
+    await player.save();
+
+    const populated = await Player.findById(player._id).populate('teamId', 'teamName shortName');
+
+    res.status(200).json({
+      success: true,
+      message: `Player marked as ${player.status}`,
+      data: { player: populated }
     });
   } catch (error) {
     next(error);

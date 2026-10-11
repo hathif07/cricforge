@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/matches', module5Controller.listSimMatches);
 router.get('/matches/:id', module5Controller.getSimMatch);
 router.get('/matches/:id/statistics', module5Controller.getMatchStatistics);
+router.get('/matches/:id/deliveries', module5Controller.getSimDeliveries);
 router.get('/matches/:id/analytics', module5Controller.getAnalytics);
 router.get('/players/:playerId/career', module5Controller.getPlayerCareerStats);
 

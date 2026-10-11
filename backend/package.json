@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "seed": "node utils/seedUsers.js && node utils/seedCricket.js",
+    "seed": "node utils/seedUsers.js && node utils/seedCricket.js && node utils/seedAuctionPlayers.js",
     "seed:cricket": "node utils/seedCricket.js",
+    "seed:auction": "node utils/seedAuctionPlayers.js",
     "cleanup:cricket": "node utils/cleanupCricketData.js"
   },
   "dependencies": {

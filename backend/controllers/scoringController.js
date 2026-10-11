@@ -1,5 +1,6 @@
 const scoringEngine = require('../services/scoringEngine');
 const simulationService = require('../services/simulationService');
+const matchService = require('../services/matchService');
 const { getIO } = require('../sockets/ioInstance');
 const {
   emitScoreUpdated,
@@ -9,7 +10,8 @@ const {
   emitOverCompleted,
   emitInningsCompleted,
   emitMatchCompleted,
-  emitSimulationUpdated
+  emitSimulationUpdated,
+  emitScorecardUpdated
 } = require('../sockets/matchSocket');
 
 // NOTE ON FIX: the original controller obtained `io` via a lazy
@@ -33,6 +35,14 @@ exports.recordDelivery = async (req, res, next) => {
       console.error('Simulation analysis error:', simError.message);
     }
 
+    // Full scorecard for ball-by-ball scoreboard sync
+    let scorecardData = null;
+    try {
+      scorecardData = await matchService.getScorecard(matchId);
+    } catch (scError) {
+      console.error('Scorecard build error:', scError.message);
+    }
+
     let io;
     try {
       io = getIO();
@@ -49,6 +59,9 @@ exports.recordDelivery = async (req, res, next) => {
       });
       if (simulationData) {
         emitSimulationUpdated(io, matchId, simulationData);
+      }
+      if (scorecardData) {
+        emitScorecardUpdated(io, matchId, scorecardData);
       }
       if (delivery.isWicket) {
         emitWicket(io, matchId, { delivery, innings });
@@ -70,7 +83,7 @@ exports.recordDelivery = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Delivery recorded',
-      data: { delivery, innings, over, simulation: simulationData }
+      data: { delivery, innings, over, simulation: simulationData, scorecard: scorecardData }
     });
   } catch (error) {
     next(error);
@@ -80,6 +93,11 @@ exports.recordDelivery = async (req, res, next) => {
 exports.undoLastDelivery = async (req, res, next) => {
   try {
     const { innings, redoDelivery } = await scoringEngine.undoLastDelivery(req.params.inningsId);
+
+    let scorecardData = null;
+    try {
+      scorecardData = await matchService.getScorecard(req.params.matchId);
+    } catch (e) { /* ignore */ }
 
     let io;
     try {
@@ -93,6 +111,9 @@ exports.undoLastDelivery = async (req, res, next) => {
         wickets: innings.totalWickets,
         totalBalls: innings.totalBalls
       });
+      if (scorecardData) {
+        emitScorecardUpdated(io, req.params.matchId, scorecardData);
+      }
     }
 
     res.status(200).json({ success: true, message: 'Last delivery undone', data: { innings, redoDelivery } });

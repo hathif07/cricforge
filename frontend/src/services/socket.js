@@ -39,7 +39,8 @@ export const subscribeToMatchEvents = (handlers) => {
     'innings_completed',
     'score_updated',
     'match_completed',
-    'simulation_updated'
+    'simulation_updated',
+    'scorecard_updated'
   ];
   events.forEach((event) => {
     if (handlers[event]) s.on(event, handlers[event]);
