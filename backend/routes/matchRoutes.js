@@ -16,5 +16,6 @@ router.post('/:id/playing-xi', authenticate, authorize('admin', 'scorer', 'team_
 router.post('/:id/start', authenticate, authorize('admin', 'scorer'), matchController.startMatch);
 router.post('/:id/start-second-innings', authenticate, authorize('admin', 'scorer'), matchController.startSecondInnings);
 router.post('/innings/:inningsId/batters', authenticate, authorize('admin', 'scorer'), matchController.setBatter);
+router.delete('/:id', authenticate, authorize('admin', 'tournament_organizer'), matchController.deleteMatch);
 
 module.exports = router;

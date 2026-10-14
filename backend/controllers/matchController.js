@@ -2,9 +2,26 @@ const matchService = require('../services/matchService');
 const { getLiveState } = require('../services/matchStateManager');
 const { getIO } = require('../sockets/ioInstance');
 const { emitMatchStarted, emitInningsCompleted } = require('../sockets/matchSocket');
+const Match = require('../models/Match');
+const Innings = require('../models/Innings');
+const Over = require('../models/Over');
+const Delivery = require('../models/Delivery');
+const FallOfWicket = require('../models/FallOfWicket');
+const Partnership = require('../models/Partnership');
+const MatchPlayer = require('../models/MatchPlayer');
 
 exports.createMatch = async (req, res, next) => {
   try {
+    // Issue 14: Validate custom overs on backend
+    if (req.body.format === 'Custom') {
+      const overs = Number(req.body.oversPerInnings);
+      if (!Number.isFinite(overs) || overs < 1 || !Number.isInteger(overs)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Custom overs must be a whole number of at least 1.'
+        });
+      }
+    }
     const match = await matchService.createMatch({ ...req.body, createdBy: req.user ? req.user._id.toString() : undefined });
     res.status(201).json({ success: true, message: 'Match created', data: { match } });
   } catch (error) {
@@ -97,11 +114,38 @@ exports.getScorecard = async (req, res, next) => {
 
 exports.getLiveState = async (req, res, next) => {
   try {
-    const Innings = require('../models/Innings');
     const innings = await Innings.findById(req.params.inningsId);
     if (!innings) return res.status(404).json({ success: false, message: 'Innings not found' });
     const state = await getLiveState(innings, req.query.target ? Number(req.query.target) : innings.target);
     res.status(200).json({ success: true, data: { state } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Issue 1: Delete match and all associated data
+exports.deleteMatch = async (req, res, next) => {
+  try {
+    const match = await Match.findById(req.params.id);
+    if (!match) {
+      return res.status(404).json({ success: false, message: 'Match not found' });
+    }
+
+    // Delete all related data for this specific match
+    const inningsList = await Innings.find({ matchId: match._id });
+    const inningsIds = inningsList.map((inn) => inn._id);
+
+    if (inningsIds.length > 0) {
+      await Delivery.deleteMany({ matchId: match._id });
+      await Over.deleteMany({ inningsId: { $in: inningsIds } });
+      await FallOfWicket.deleteMany({ inningsId: { $in: inningsIds } });
+      await Partnership.deleteMany({ inningsId: { $in: inningsIds } });
+      await Innings.deleteMany({ matchId: match._id });
+    }
+    await MatchPlayer.deleteMany({ matchId: match._id });
+    await match.deleteOne();
+
+    res.status(200).json({ success: true, message: 'Match deleted successfully' });
   } catch (error) {
     next(error);
   }

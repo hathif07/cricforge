@@ -246,7 +246,7 @@ const Scorecard = () => {
           {innings.map((inn, idx) => (
             <button
               key={inn.inningsNumber}
-              className={`pill-btn${activeTab === idx ? ' active' : ''}`}
+              className={`pill${activeTab === idx ? ' active' : ''}`}
               onClick={() => setActiveTab(idx)}
             >
               Innings {inn.inningsNumber}: {inn.battingTeamName} ({inn.totalRuns}/{inn.totalWickets})
@@ -357,7 +357,7 @@ const Scorecard = () => {
               
               {perOverData.length > 0 && (
                 <div style={{ marginTop: 16 }}>
-                  <h4>Runs per Over (Manhattan)</h4>
+                  <h4>Runs per Over</h4>
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={perOverData}>
                       <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />

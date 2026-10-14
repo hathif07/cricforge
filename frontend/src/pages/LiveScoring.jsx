@@ -272,7 +272,9 @@ const LiveScoring = () => {
         <div className="alert alert-info">
           This innings is complete.{' '}
           {match.innings.length < 2 && <button className="btn btn-primary btn-sm" onClick={startSecondInnings}>Start Second Innings</button>}
-          {match.innings.length >= 2 && <span> Match complete — view the <a href={`/matches/${id}/scorecard`}>full scorecard</a>.</span>}
+          {match.innings.length >= 2 && <span> Match complete — redirecting to scorecard… <a href={`/matches/${id}/scorecard`}>full scorecard</a>.</span>}
+          {/* Issue 6: auto-redirect to scorecard when match is complete */}
+          {match.innings.length >= 2 && (() => { setTimeout(() => navigate(`/matches/${id}/scorecard`), 1500); return null; })()}
         </div>
       ) : (
         <div className="scoring-layout">
@@ -298,51 +300,8 @@ const LiveScoring = () => {
               </div>
             </div>
 
-            {/* Live Simulation Engine Bar */}
-            {simulation && (
-              <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid #10b981', background: 'var(--card-bg, #ffffff)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div>
-                    <span className="eyebrow" style={{ color: '#10b981', fontWeight: 700 }}>⚡ LIVE BALL SIMULATION</span>
-                    <strong style={{ display: 'block', fontSize: '0.95rem' }}>{simulation.situation || 'Match forecast'}</strong>
-                  </div>
-                  {simulation.phase && (
-                    <span className="badge badge-outline" style={{ textTransform: 'uppercase' }}>
-                      Phase: {simulation.phase}
-                    </span>
-                  )}
-                </div>
-
-                {/* Win Probability Bar */}
-                {simulation.winProbability && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>
-                      <span>{match.teamA?.name}: {simulation.winProbability.teamA?.percent ?? 50}%</span>
-                      <span>{match.teamB?.name}: {simulation.winProbability.teamB?.percent ?? 50}%</span>
-                    </div>
-                    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#e2e8f0' }}>
-                      <div style={{ width: `${simulation.winProbability.teamA?.percent ?? 50}%`, background: '#0284c7', transition: 'width 0.3s ease' }} />
-                      <div style={{ width: `${simulation.winProbability.teamB?.percent ?? 50}%`, background: '#e11d48', transition: 'width 0.3s ease' }} />
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid-3" style={{ fontSize: '0.85rem' }}>
-                  <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '6px 10px', borderRadius: 6 }}>
-                    <span className="eyebrow">Projected</span>
-                    <strong>{simulation.projectedScore ?? '—'}</strong>
-                  </div>
-                  <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '6px 10px', borderRadius: 6 }}>
-                    <span className="eyebrow">CRR</span>
-                    <strong>{simulation.currentRunRate ?? (legalBalls > 0 ? ((innings.totalRuns / legalBalls) * 6).toFixed(2) : '0.00')}</strong>
-                  </div>
-                  <div style={{ background: 'var(--bg-secondary, #f8fafc)', padding: '6px 10px', borderRadius: 6 }}>
-                    <span className="eyebrow">RRR</span>
-                    <strong>{simulation.requiredRunRate ?? '—'}</strong>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Issue 8: Win probability / simulation card removed from Scorer panel.
+                It remains available on the Spectator Screen (LiveMatch.jsx) and Scorecard. */}
 
             <div className="card">
               <div className="card-title"><h3>Current delivery</h3>{(freeHit || extraType === 'noBall') && <span className="badge badge-solid">FREE HIT</span>}</div>
@@ -377,7 +336,15 @@ const LiveScoring = () => {
               <p className="form-label">Result to enter</p>
               <div className="keyboard-grid">
                 {RUN_OPTIONS.map((run) => (
-                  <button type="button" key={run} className={`keyboard-btn ${pendingRuns === run ? 'selected' : ''}`} onClick={() => setPendingRuns(run)}>{run}</button>
+                  <button
+                    type="button"
+                    key={run}
+                    className={`keyboard-btn ${pendingRuns === run ? 'selected' : ''}`}
+                    disabled={showWicketForm && wicketType !== 'runOut'}
+                    onClick={() => { if (!showWicketForm || wicketType === 'runOut') setPendingRuns(run); }}
+                  >
+                    {run}
+                  </button>
                 ))}
                 <button type="button" className={`keyboard-btn ${showWicketForm ? 'selected' : ''}`} onClick={() => { setShowWicketForm((visible) => !visible); setPendingRuns(0); }}>WICKET</button>
               </div>

@@ -18,6 +18,8 @@ const Auction = () => {
   const [bidAmount, setBidAmount] = useState("");
 
   const [error, setError] = useState("");
+  const [editingAuctionId, setEditingAuctionId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
 
   // --------------------------------------------------
   // LOAD AUCTIONS
@@ -113,6 +115,41 @@ const Auction = () => {
       setError(
         err.response?.data?.message || "Could not create auction."
       );
+    }
+  };
+
+  // --------------------------------------------------
+  // DELETE AUCTION
+  // --------------------------------------------------
+  const deleteAuction = async (e, auctionId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this auction?")) return;
+    setError("");
+    try {
+      await api.delete(`/auction/${auctionId}`);
+      await loadAuctions();
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not delete auction.");
+    }
+  };
+
+  // --------------------------------------------------
+  // UPDATE AUCTION NAME
+  // --------------------------------------------------
+  const saveAuctionName = async (e, auctionId) => {
+    e.stopPropagation();
+    setError("");
+    if (!editTitle.trim()) {
+      setError("Auction title cannot be empty.");
+      return;
+    }
+    try {
+      await api.put(`/auction/${auctionId}`, { title: editTitle.trim() });
+      setEditingAuctionId(null);
+      setEditTitle("");
+      await loadAuctions();
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not update auction name.");
     }
   };
 
@@ -636,9 +673,35 @@ const Auction = () => {
               }}
             >
 
-              <h3>
-                {auction.title}
-              </h3>
+              {editingAuctionId === auction._id ? (
+                <div
+                  style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    className="form-input"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={(e) => saveAuctionName(e, auction._id)}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    onClick={(e) => { e.stopPropagation(); setEditingAuctionId(null); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <h3>
+                  {auction.title}
+                </h3>
+              )}
 
               <p className="muted">
                 {auction.teams
@@ -649,15 +712,38 @@ const Auction = () => {
                   .join(" vs ")}
               </p>
 
-              <span
-                className={`badge ${
-                  auction.status === "live"
-                    ? "badge-solid"
-                    : "badge-outline"
-                }`}
-              >
-                {auction.status}
-              </span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                <span
+                  className={`badge ${
+                    auction.status === "live"
+                      ? "badge-solid"
+                      : "badge-outline"
+                  }`}
+                >
+                  {auction.status.toUpperCase()}
+                </span>
+
+                {hasRole("admin", "tournament_organizer") && (
+                  <div className="btn-row" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="btn btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingAuctionId(auction._id);
+                        setEditTitle(auction.title);
+                      }}
+                    >
+                      Edit Name
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={(e) => deleteAuction(e, auction._id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
 
             </div>
           ))}

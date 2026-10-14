@@ -82,7 +82,14 @@ function App() {
             />
             <Route path="/matches/:id/toss" element={<TossPage />} />
             <Route path="/matches/:id/playing-xi" element={<PlayingXI />} />
-            <Route path="/matches/:id/live-scoring" element={<LiveScoring />} />
+            <Route
+              path="/matches/:id/live-scoring"
+              element={
+                <RoleGuard roles={['admin', 'scorer']}>
+                  <LiveScoring />
+                </RoleGuard>
+              }
+            />
             <Route path="/matches/:id/live" element={<LiveMatch />} />
             <Route path="/matches/:id/scorecard" element={<Scorecard />} />
 

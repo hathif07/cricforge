@@ -55,6 +55,14 @@ const LiveMatch = () => {
               totalWickets: currentCard.totalWickets
             });
           }
+          // Issue 11: populate commentary feed from keyMoments on load
+          const moments = currentCard?.keyMoments || [];
+          if (moments.length > 0) {
+            setFeed(moments.slice().reverse().map((m, idx) => ({
+              text: `[Over ${m.over}] ${m.description}`,
+              key: `moment-${m.ball || idx}`
+            })).slice(0, 30));
+          }
         }
       }
     } catch (e) {
@@ -422,7 +430,7 @@ const LiveMatch = () => {
 
           {perOverData.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4>Runs per Over (Manhattan)</h4>
+              <h4>Runs per Over</h4>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={perOverData}>
                   <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />

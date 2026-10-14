@@ -423,11 +423,16 @@ const calculateLiveAnalysis = ({ match, innings, delivery }) => {
     } else if (runsNeeded <= 0) {
       battingProb = 100;
     } else {
+      // Issue 7 fix: dampened formula to avoid extreme probability swings
+      // from a single delivery. Uses lower multipliers and a confidence
+      // factor based on balls bowled so early overs don't overreact.
+      const ballsBowled = Math.max(legalBalls, 1);
+      const confidence = Math.min(ballsBowled / (totalBallsLimit * 0.5), 1); // ramps to 1 at halfway
       const crrDiff = crr - (rrr || 0);
-      const wktEdge = (wicketsInHand - 5) * 5;
+      const wktEdge = (wicketsInHand - 5) * 3;
       const runsPerBall = runsNeeded / (ballsRemaining || 1);
-      const prob = 50 + crrDiff * 6 + wktEdge - (runsPerBall > 2 ? 25 : runsPerBall > 1.5 ? 15 : 0);
-      battingProb = Math.min(Math.max(Math.round(prob), 1), 99);
+      const rawProb = 50 + (crrDiff * 3 + wktEdge) * confidence - (runsPerBall > 2 ? 20 : runsPerBall > 1.5 ? 10 : 0);
+      battingProb = Math.min(Math.max(Math.round(rawProb), 3), 97);
     }
   }
   const bowlingProb = 100 - battingProb;

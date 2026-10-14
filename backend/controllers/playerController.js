@@ -417,7 +417,10 @@ exports.updatePlayerStatus = async (req, res, next) => {
       }
     }
 
-    await player.save();
+    // Issue 13 fix: use validateModifiedOnly so legacy field values
+    // (e.g. bowlingStyle) that don't match the current enum don't cause
+    // a validation error when only status-related fields were changed.
+    await player.save({ validateModifiedOnly: true });
 
     const populated = await Player.findById(player._id).populate('teamId', 'teamName shortName');
 

@@ -21,6 +21,14 @@ const CreateMatch = () => {
       setError('Please select two different teams.');
       return;
     }
+    // Issue 14: validate custom overs
+    if (form.format === 'Custom') {
+      const overs = Number(form.oversPerInnings);
+      if (!Number.isFinite(overs) || overs < 1 || !Number.isInteger(overs)) {
+        setError('Custom overs must be a whole number of at least 1.');
+        return;
+      }
+    }
     const teamA = teams.find((t) => t._id === form.teamAId);
     const teamB = teams.find((t) => t._id === form.teamBId);
 

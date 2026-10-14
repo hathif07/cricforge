@@ -508,21 +508,21 @@ const Players = () => {
           <div className="pill-nav">
             <button
               type="button"
-              className={`pill-btn ${statusFilter === 'all' ? 'active' : ''}`}
+              className={`pill ${statusFilter === 'all' ? 'active' : ''}`}
               onClick={() => setStatusFilter('all')}
             >
               All
             </button>
             <button
               type="button"
-              className={`pill-btn ${statusFilter === 'unsold' ? 'active' : ''}`}
+              className={`pill ${statusFilter === 'unsold' ? 'active' : ''}`}
               onClick={() => setStatusFilter('unsold')}
             >
               Unsold
             </button>
             <button
               type="button"
-              className={`pill-btn ${statusFilter === 'sold' ? 'active' : ''}`}
+              className={`pill ${statusFilter === 'sold' ? 'active' : ''}`}
               onClick={() => setStatusFilter('sold')}
             >
               Sold

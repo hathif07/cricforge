@@ -30,15 +30,21 @@ exports.createAuction = async (req, res, next) => {
     let pool = playerIds;
 
     // If player IDs are not supplied,
-    // use all unsold players.
+    // use all players so they can participate across multiple leagues/auctions.
     if (!Array.isArray(pool) || pool.length === 0) {
-      const unsoldPlayers = await Player.find({
-        isSold: false
-      });
+      const allPlayers = await Player.find({});
 
-      pool = unsoldPlayers.map(
+      pool = allPlayers.map(
         (player) => player._id
       );
+    }
+
+    if (pool.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Auction cannot be started because no eligible players are available."
+      });
     }
 
     const auction = await Auction.create({
@@ -561,10 +567,12 @@ exports.resolvePlayer = async (
       currentPlayer.soldPrice =
         bidAmount;
 
-      currentPlayer.soldTo =
+      // Issue 4 fix: the original code wrote to `soldTo` which is not
+      // in the Player schema (silently dropped). The correct field is `teamId`.
+      currentPlayer.teamId =
         winningTeam._id;
 
-      await currentPlayer.save();
+      await currentPlayer.save({ validateModifiedOnly: true });
 
       // Mark bids as sold
       await AuctionBid.updateMany(
@@ -672,3 +680,65 @@ exports.resolvePlayer = async (
 // ============================================================
 exports.resolveCurrentPlayer =
   exports.resolvePlayer;
+
+
+// ============================================================
+// DELETE AUCTION
+// ============================================================
+exports.deleteAuction = async (req, res, next) => {
+  try {
+    const auction = await Auction.findById(req.params.id);
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found"
+      });
+    }
+
+    // Remove associated bid history
+    await AuctionBid.deleteMany({ auctionId: auction._id });
+    await auction.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: "Auction deleted successfully"
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// ============================================================
+// UPDATE AUCTION (title)
+// ============================================================
+exports.updateAuction = async (req, res, next) => {
+  try {
+    const { title } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Auction title is required"
+      });
+    }
+
+    const auction = await Auction.findById(req.params.id);
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found"
+      });
+    }
+
+    auction.title = title.trim();
+    await auction.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Auction updated successfully",
+      data: { auction }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
